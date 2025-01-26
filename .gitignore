@@ -1,4 +1,5 @@
 oauth.json
-Spotify.json
+spotify.json
+.gitignore
 .DS_Store
 .cache
