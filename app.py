@@ -6,12 +6,10 @@ import ffmpeg
 import random
 import spotipy
 from io import BytesIO
-from pygame import mixer 
-from pprint import pprint
 from datetime import datetime
-from pydub import AudioSegment 
 from ytmusicapi import YTMusic
 from spotipy.oauth2 import SpotifyClientCredentials
+from flask import jsonify, Flask, Response, render_template, send_file, stream_with_context, request, session, redirect, url_for
 
 with open('spotify.json','r') as f:
     spotify_credentials = json.load(f)
@@ -79,10 +77,6 @@ def download_song(id, start):
 
 
 ## Flask App
-
-from flask import jsonify, Flask, Response, render_template, send_file, stream_with_context, request, session, redirect, url_for
-from threading import Thread
-import time
 
 download_progress = {}
 
