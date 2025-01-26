@@ -1,4 +1,5 @@
 import os
+import json
 import time
 import yt_dlp
 import ffmpeg
@@ -12,8 +13,11 @@ from pydub import AudioSegment
 from ytmusicapi import YTMusic
 from spotipy.oauth2 import SpotifyClientCredentials
 
-CLIENT_ID = "3a37e2adaf224237b96d901fd80b1829"
-CLIENT_SECRET = "1c58b4a6904f451b8a205472a2a18f0e"
+with open('spotify.json','r') as f:
+    spotify_credentials = json.load(f)
+
+CLIENT_ID = spotify_credentials['CLIENT_ID']
+CLIENT_SECRET = spotify_credentials['CLIENT_SECRET']
 ytmusic = YTMusic('oauth.json') 
 
 with open('genres.txt', 'r') as f:
