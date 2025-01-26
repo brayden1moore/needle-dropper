@@ -56,7 +56,7 @@ def get_random_song(genre=None, start_year=None, end_year=None):
 def download_song(id, start):
     output_dir = 'static/clips'
     ydl_opts = {
-        'cookiesfrombrowser': ('chrome',),
+        'cookies': 'cookies.txt',
         'format': 'bestaudio/best',
         'outtmpl': os.path.join(output_dir, '%(title)s.%(ext)s'),
         'external_downloader': 'ffmpeg',
