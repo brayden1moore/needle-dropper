@@ -67,7 +67,10 @@ def download_song(id, start):
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3',
             'preferredquality': '192',
-        }]
+        }],
+        'http_headers': {
+            'User-Agent': "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36"
+        }
     }
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
