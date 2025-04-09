@@ -4,3 +4,4 @@ yt-dlp
 ytmusicapi
 ffmpeg-python
 gunicorn
+deemix
