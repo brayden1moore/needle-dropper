@@ -214,7 +214,7 @@ def pocket():
     url = params.get('url')
 
     tmpdir = tempfile.mkdtemp()
-    run(['./dmix', url, '--path', tmpdir], check=True)
+    run(['deemix', url, '--path', tmpdir], check=True)
 
     files = os.listdir(tmpdir)
     if not files:
