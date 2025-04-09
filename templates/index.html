@@ -15,7 +15,7 @@
 
 </head>
 <body>
-  <input type="checkbox" id="is-test" checked>
+  <input type="checkbox" id="is-test" >
   <div id="content-div">
         <h1>NEEDLE DROPPER</h1>
         <div id="selectas">
@@ -65,7 +65,7 @@
             <div id="go-buttons">
               <div id="pocket-button" class="go-button shrunken">
                 <i class="fa-solid fa-download"></i>
-                <p class="button-text">POCKET</p>
+                <p class="button-text" id="pocket-text">POCKET</p>
                 <div class="dropdown">
                   <div id="clip-button" class="pocket-option">Clip</div>
                   <div id="track-button" class="pocket-option">Track</div>
@@ -73,7 +73,23 @@
               </div>
               <div id="drop-button" class="go-button shrunken ">
                 <i class="fa-solid fa-map-pin"></i>                
-                <p class="button-text">RE-DROP</p>
+                <p class="button-text">DROP</p>
+              </div>
+
+              <div id="more-from" class="go-button shrunken">
+                <i class="fa-solid fa-map-pin"></i>                
+                <p class="button-text">MORE FROM</p>
+                <div class="dropdown" id="more-from-dropdown">
+                  <div id="artist-button" class="pocket-option">
+                    <p class="button-text">ARTIST</p>
+                  </div>
+                  <div id="album-button" class="pocket-option">
+                    <p class="button-text">ALBUM</p>
+                  </div>
+                  <div id="genre-button" class="pocket-option">
+                    <p class="button-text">GENRE</p>
+                  </div>
+                </div>
               </div>
               <div id="dig-button" class="go-button expanded" style="transition: none;">
                 <i class="fa-solid fa-compact-disc"></i>                
@@ -162,12 +178,17 @@ function toggleClip() {
     const audio = document.getElementById('clip-audio');
     const playButton = document.getElementById('play-button');
 
-    if (audio.paused) {
+    if (audio.src.includes('no_source')) {
+        drop(playButton.dataset.id, playButton.dataset.duration);
+    }
+    else {
+      if (audio.paused) {
         audio.play();
         playButton.innerHTML = '<i class="fa-solid fa-pause"></i>';
-    } else {
-        audio.pause();
-        playButton.innerHTML = '<i class="fa-solid fa-play"></i>';
+      } else {
+          audio.pause();
+          playButton.innerHTML = '<i class="fa-solid fa-play"></i>';
+      }
     }
 }
 
@@ -189,27 +210,55 @@ function visualizeClip(clipLength, startTime, duration) {
 }
 
 function pocket() {
-    const audioElement = document.getElementById('clip-audio');
+  const url = document.getElementById('pocket-button').dataset.deezer_url;
+  const pocketButton = document.getElementById('pocket-button');
+  const originalHTML = pocketButton.innerHTML;
+  pocketButton.innerHTML = 'POCKETING...'
 
-    if (!audioElement || !audioElement.src) {
-        console.error('No audio source found to download.');
-        return;
+  fetch('/pocket', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.file_id) {
+      window.location.href = `/download?id=${data.file_id}`;
+    } else {
+      alert('Download failed.');
     }
+    pocketButton.innerHTML = originalHTML;
+  });
+}
 
-    const audioSrc = audioElement.src;
-    const trackTitle = document.getElementById('track-title').textContent;
-    const trackArtist = document.getElementById('track-artist').textContent;
-    const trackGenre = document.getElementById('track-genre').textContent;
-    const clipTimes = document.getElementById('clip-times').textContent;
+/*
+function pocket() {
+  const url = document.getElementById('pocket-button').dataset.deezer_url;
+  const pocketButton = document.getElementById('pocket-button');
+  const originalHTML = pocketButton.innerHTML;
+  pocketButton.innerHTML = 'POCKETING...';
 
-    const anchor = document.createElement('a');
-    anchor.href = audioSrc;
-    anchor.download = `${trackArtist} - ${trackTitle + ' (' + clipTimes.replace(/:/g, "'")}) (${trackGenre}).mp3`; 
-    document.body.appendChild(anchor);
+  const source = new EventSource(`/pocket?url=${encodeURIComponent(url)}`);
 
-    anchor.click();
-    document.body.removeChild(anchor);
-};
+  source.onmessage = (event) => {
+    console.log(event.data); // optional: show log lines
+  };
+
+  source.addEventListener("done", (event) => {
+    const fileId = event.data;
+    source.close();
+    pocketButton.innerHTML = originalHTML;
+    window.location.href = `/download?id=${fileId}`;
+  });
+
+  source.onerror = () => {
+    console.error("Error during download");
+    source.close();
+    pocketButton.innerHTML = originalHTML;
+    alert("Pocket failed.");
+  };
+}
+  */
 
 function drop(id, duration) {
     const audioElement = document.getElementById('clip-audio');
@@ -219,11 +268,8 @@ function drop(id, duration) {
     playElement.innerHTML = '<i class="fa-solid fa-spinner"></i>';
     playElement.classList.add('rotating');
 
-    const coverDiv = document.getElementById('cover-div');
-    coverDiv.removeEventListener('click', toggleClip);
-
     const dropButton = document.getElementById('drop-button');
-    originalHtml = dropButton.innerHTML;
+    originalHtml = '<i class="fa-solid fa-map-pin"></i><p class="button-text">DROP</p>'
     dropButton.innerHTML = 'DROPPING...';
 
     const digButton = document.getElementById('dig-button');
@@ -234,6 +280,7 @@ function drop(id, duration) {
 
     const clipVisualization = document.getElementById('clip-visualization');
     clipVisualization.style.width = 0;
+    clipVisualization.style.display = 'block';
     clipVisualization.classList.add('move-left-right');
 
     const pocketButton = document.getElementById('pocket-button');
@@ -245,6 +292,9 @@ function drop(id, duration) {
     goButtons.classList.add('collapse-go');
 
     const isTest = document.getElementById('is-test').checked;
+
+    const trackDiv = document.getElementById('track-div');
+    trackDiv.style.display = 'block';
 
     fetch('/drop', {
           method: 'POST',
@@ -291,31 +341,38 @@ function drop(id, duration) {
       })
 }
 
-function dig() {
+function dig(artist=null, album=null, track=null) {
+    const trackDiv = document.getElementById('track-div');
     const audioElement = document.getElementById('clip-audio');
+    const playButton = document.getElementById('play-button');
     const pocketButton = document.getElementById('pocket-button');
     const clipButton = document.getElementById('clip-button');
     const reDropButton = document.getElementById('drop-button');
+    const moreFrom = document.getElementById('more-from');
     const digButton = document.getElementById('dig-button');
     const clipDiv = document.getElementById('clip-div');
     const originalHtml = digButton.innerHTML;
+
+    trackDiv.style.display = 'none';
+
+    moreFrom.classList.add('shrunken');
+    moreFrom.classList.remove('expanded');
 
     pocketButton.removeEventListener('click', pocket);
     pocketButton.classList.add('shrunken');
     pocketButton.classList.remove('expanded');
 
-    reDropButton.classList.add('shrunken');
-    reDropButton.classList.remove('expanded');
-
+    audioElement.src = 'no_source';
+    playButton.innerHTML = '<i class="fa-solid fa-play"></i>';
     if (!audioElement.paused) {
         audioElement.pause();
     }
 
     digButton.innerHTML = 'DIGGING...';
-    digButton.classList.add('shake-slow', 'shake-constant');
     clipDiv.style.height = "0";
     clipDiv.style.marginTop = "0";
 
+    const coverDiv = document.getElementById('cover-div');
     const isTest = document.getElementById('is-test').checked;
     const genre = document.getElementById('genre-select').value;
     const startYear = document.getElementById('start-year-select').value;
@@ -326,15 +383,13 @@ function dig() {
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ genre, startYear, endYear, isTest }),
+        body: JSON.stringify({ genre, startYear, endYear, artist, album, track, isTest }),
     })
         .then(response => {
             if (!response.ok) throw new Error('Fetch failed');
             return response.json();
         })
         .then(data => {
-            digButton.classList.remove('shake-slow', 'shake-constant');
-
             if (data.status === "error") {
                 handleDigError(data.message, digButton, originalHtml, clipDiv);
             } else if (data.status === "success") {
@@ -347,8 +402,20 @@ function dig() {
 }
 
 function handleDigError(message, digButton, originalHtml, clipDiv) {
+    const moreFrom = document.getElementById('more-from');
+    const pocketButton = document.getElementById('pocket-button');
+
     digButton.innerHTML = message;
     digButton.classList.add('shake-little', 'shake-constant');
+
+    if (foundTrack !== false) {
+        moreFrom.classList.remove('shrunken');
+        moreFrom.classList.add('expanded');
+
+        pocketButton.addEventListener('click', pocket);
+        pocketButton.classList.remove('shrunken');
+        pocketButton.classList.add('expanded');
+    }
 
     setTimeout(() => {
         digButton.classList.remove('shake-little', 'shake-constant');
@@ -364,7 +431,8 @@ function handleDigError(message, digButton, originalHtml, clipDiv) {
 function handleDigSuccess(data, digButton, originalHtml, clipDiv) {
     foundTrack = true;
 
-    const dropButton = document.getElementById('drop-button');
+    const moreFrom = document.getElementById('more-from');
+    const pocketButton = document.getElementById('pocket-button');
     const audioElement = document.getElementById('clip-audio');
     const coverElement = document.getElementById('clip-cover');
     const clipInfo = document.getElementById('clip-info');
@@ -372,37 +440,79 @@ function handleDigSuccess(data, digButton, originalHtml, clipDiv) {
     digButton.innerHTML = originalHtml;
     coverElement.src = data.cover;
 
+    moreFrom.classList.remove('shrunken');
+    moreFrom.classList.add('expanded');
+
+    pocketButton.addEventListener('click', pocket);
+    pocketButton.classList.remove('shrunken');
+    pocketButton.classList.add('expanded');
+
     clipInfo.innerHTML = `
-        <span class='track-title' id='track-title'><a class="song-link" href=${data.url} target="_">${data.title}</a></span><br>
+        <span class='track-title' id='track-title'>${data.title}</span><br><br>
         by <b><span id='track-artist'>${data.artist}</span></b><br>
-        from <b>${data.album_name} (${(data.release_date).substring(0, 4)})</b><br>
+        from <b><span id='track-album'>${data.album_name}</span> (${(data.release_date).substring(0, 4)})</b><br>
         <br>
         Genre: <span id='track-genre'>${data.genre}</span><br>
-        Popularity: ${data.popularity}/100<br>`;
+        Popularity: ${data.popularity}/100<br>
+        Length: ${formatDuration(data.duration)}<br><br>
+        <a class="song-link" href=${data.youtube_url} target="_">YouTube</a>
+        <a class="song-link" href=${data.spotify_url} target="_">Spotify</a>
+        <a class="song-link" href=${data.deezer_url} target="_">Deezer</a>`;
 
     coverElement.onload = () => {
         clipDiv.style.height = "200px";
         clipDiv.style.marginTop = "9px";
     };
 
+    pocketButton.dataset.deezer_url = data.deezer_url;
+
+    audioElement.src = data.preview;
     setupDropButton(data.id, data.duration);
-    drop(data.id, data.duration);
+}
+
+function formatDuration(seconds) {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
 function setupAudio(path) {
     const audioElement = document.getElementById('clip-audio');
-
     if (!path) {
         console.error('Audio path is empty.');
         return;
     }
-
     audioElement.src = path;
     audioElement.load();
-
-    const coverDiv = document.getElementById('cover-div');
-    coverDiv.addEventListener('click', toggleClip);
 }
+
+const artistButton = document.getElementById('artist-button');
+artistButton.addEventListener('click',() => {
+    artist_name = document.getElementById('track-artist').textContent;
+    track_name = document.getElementById('track-title').textContent;
+    dig(artist=artist_name, track=track_name);
+})
+
+const albumButton = document.getElementById('album-button');
+albumButton.addEventListener('click',() => {
+    album_name = document.getElementById('track-album').textContent;
+    artist_name = document.getElementById('track-artist').textContent;
+    track_name = document.getElementById('track-title').textContent;
+    dig(artist=artist_name, album=album_name, track=track_name);
+})
+
+const genreButton = document.getElementById('genre-button');
+genreButton.addEventListener('click',() => {
+    const genreSelect = document.getElementById('genre-select');
+    genreName = document.getElementById('track-genre').textContent;
+    for (const option of genreSelect.options) {
+      if (option.text === genreName.toUpperCase()) {
+        option.selected = true;
+        break;
+      }
+    }
+    dig();
+})
 
 function updateButtonStates() {
     const buttons = document.querySelectorAll('.go-button');
@@ -415,12 +525,40 @@ function updateButtonStates() {
 function setupDropButton(id, duration) {
     const reDropButton = document.getElementById('drop-button');
     const newButton = reDropButton.cloneNode(true);
+    const playButton = document.getElementById('play-button');
+    playButton.dataset.id = id;
+    playButton.dataset.duration = duration;
     reDropButton.parentNode.replaceChild(newButton, reDropButton);
+    newButton.addEventListener('click', () => drop(id, duration));
     newButton.addEventListener('click', () => drop(id, duration));
 }
 
-document.getElementById('dig-button').addEventListener('click', dig);
+document.getElementById('dig-button').addEventListener('click', () => {
+  dig();
+});
 
+const coverDiv = document.getElementById('cover-div');
+coverDiv.addEventListener('click', toggleClip);
+
+function setColorFavicon() {
+  const color = getComputedStyle(document.documentElement)
+    .getPropertyValue('--primary-color')
+    .trim();
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 64;
+  canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = color;
+  ctx.fillRect(0, 0, 64, 64);
+
+  const link = document.querySelector("link[rel~='icon']") || document.createElement('link');
+  link.rel = 'icon';
+  link.href = canvas.toDataURL('image/png');
+  document.head.appendChild(link);
+}
+
+setColorFavicon();
 
 </script>
 </body> 

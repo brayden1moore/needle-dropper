@@ -1,6 +1,6 @@
 :root {
-    --primary-color: #632CA2;
-    --secondary-color: #f2ff43;
+    --primary-color: #974aee;
+    --secondary-color: #FFFF00;
     --tertiary-color: #000000;
     --outline-color: #FFF;
     --outline-thickness: 2px;
@@ -18,13 +18,14 @@ body {
 }
 h1 {
     font-family: "Rubik Spray Paint", serif;
-    text-shadow: var(--outline-thickness-negative) var(--outline-thickness-negative) 0 var(--outline-color), var(--outline-thickness) var(--outline-thickness-negative) 0 var(--outline-color), var(--outline-thickness-negative) var(--outline-thickness) 0 var(--outline-color), var(--outline-thickness) var(--outline-thickness) 0 var(--outline-color);
-    font-weight: bold;
+   text-shadow: var(--outline-thickness-negative) var(--outline-thickness-negative) 0 var(--outline-color), var(--outline-thickness) var(--outline-thickness-negative) 0 var(--outline-color), var(--outline-thickness-negative) var(--outline-thickness) 0 var(--outline-color), var(--outline-thickness) var(--outline-thickness) 0 var(--outline-color);
+    font-weight: 100;
     margin-bottom: 0px;
     word-spacing: 10px;
     color: var(--tertiary-color);
     font-size: 52pt;
     letter-spacing: -4pt;
+    text-align: center;
 }
 #content-div {
     width: 600px;
@@ -134,10 +135,20 @@ h1 {
   
 .dropdown {
     display: none;
+    margin-top: 105px;
     position: absolute;
     width: 100%;
     justify-content: center;
     align-items: center;
+}
+
+#more-from-dropdown {
+    display: none;
+    overflow: hidden;
+}
+
+#more-from:hover #more-from-dropdown {
+    display: block !important;
 }
 
 .pocket-option {
@@ -240,7 +251,7 @@ h1 {
 
 .song-link {
     color: black;
-    text-decoration: none;
+    text-decoration: underline;
     transition: 0.2s ease;
 }
 

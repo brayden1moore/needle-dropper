@@ -1,15 +1,20 @@
 import os
+import uuid
 import json
 import time
+import shlex
 import yt_dlp
 import ffmpeg
 import random
 import spotipy
+import requests
+import tempfile
 from io import BytesIO
 from datetime import datetime
 from ytmusicapi import YTMusic
 from spotipy.oauth2 import SpotifyClientCredentials
-from flask import jsonify, Flask, Response, render_template, send_file, stream_with_context, request, session, redirect, url_for
+from flask import jsonify, Flask, abort, Response, render_template, send_file, stream_with_context, request, session, redirect, url_for, stream_with_context
+from subprocess import Popen, PIPE, run
 
 with open('spotify.json','r') as f:
     spotify_credentials = json.load(f)
@@ -21,42 +26,92 @@ ytmusic = YTMusic('oauth.json')
 with open('genres.txt', 'r') as f:
     genres = f.read().split('\n')
 
-def get_random_song(genre=None, start_year=None, end_year=None):
-    duration = 1000
-    while duration > 600:
-        if not genre:
-            genre = genres[random.randint(0,len(genres)-1)]
-        if not end_year:
-            datetime.now().year
-        if not start_year:
-            parameters = f"genre:{genre}"
+def search_deezer_track(query, limit=1):
+    url = f"https://api.deezer.com/search?q={query}&limit={limit}"
+    res = requests.get(url)
+    data = dict(res.json()['data'][0])
+    to_return = {
+        "title": data["title"],
+        "artist": data["artist"]["name"],
+        "id": data["id"],
+        "url": data["link"],
+        "preview": data["preview"]
+    }
+    return to_return
+
+def get_random_song(genre=None, start_year=None, end_year=None, artist=None, album=None, track=None):
+
+    song_found = False
+    while song_found == False:
+        parameters = ''
+        if genre:
+            parameters += f"genre:{genre} "
         else:
-            parameters = f"genre:{genre} year:{start_year}-{end_year}"
+            genre = genres[random.randint(0,len(genres)-1)]
+            parameters += f"genre:{genre} "
+        
+        if start_year and end_year:
+            parameters += f" year:{start_year}-{end_year} "
+
+        if artist:
+            parameters = f'artist:{artist}'
+        elif album:
+            parameters = f'artist:{artist} album:{album}'
 
         creds = SpotifyClientCredentials(client_id=CLIENT_ID, client_secret=CLIENT_SECRET)
         sp = spotipy.Spotify(client_credentials_manager=creds)
 
-        num_results = sp.search(q=parameters, type="track", limit=1)['tracks']['total']
-        results = sp.search(q=parameters, type="track", limit=1, offset=random.randint(0,num_results-1))
+        if artist or album:
+            retry = 0
+            found = False
+            while (found == False) and (retry < 4):
+                num_results = sp.search(q=parameters, type="track", limit=1)['tracks']['total']
+                spotify_results = sp.search(q=parameters, type="track", limit=1, offset=random.randint(0,num_results-1))
+                title = spotify_results['tracks']['items'][0]['name']
+                artist_name = spotify_results['tracks']['items'][0]['album']['artists'][0]['name']
+                album_name = spotify_results['tracks']['items'][0]['album']['name']
 
-        artist = results['tracks']['items'][0]['album']['artists'][0]['name']
-        title = results['tracks']['items'][0]['name']
-        popularity = results['tracks']['items'][0]['popularity']
-        query = f'{title} by {artist}'
-        cover = results['tracks']['items'][0]['album']['images'][0]['url']
-        release_date = results['tracks']['items'][0]['album']['release_date']
-        album_name = results['tracks']['items'][0]['album']['name']
+                if album and (title != track) and (artist_name == artist) and (album_name == album):
+                    print(album)
+                    print(album_name)
+                    found = True
+                if not album and artist and (title != track) and (artist_name == artist):
+                    found = True
+                retry += 1
+        else:     
+            num_results = sp.search(q=parameters, type="track", limit=1)['tracks']['total']
+            spotify_results = sp.search(q=parameters, type="track", limit=1, offset=random.randint(0,num_results-1))
+
+        artist = spotify_results['tracks']['items'][0]['album']['artists'][0]['name']
+        title = spotify_results['tracks']['items'][0]['name']
+        popularity = spotify_results['tracks']['items'][0]['popularity']
+        query = f'{title} {artist}'
+        cover = spotify_results['tracks']['items'][0]['album']['images'][0]['url']
+        release_date = spotify_results['tracks']['items'][0]['album']['release_date']
+        album_name = spotify_results['tracks']['items'][0]['album']['name']
+        spotify_url = spotify_results['tracks']['items'][0]['external_urls']['spotify']
         
-        search_results = ytmusic.search(query, filter='songs', limit=1)
-        id = search_results[0]['videoId']
-        duration = search_results[0]['duration_seconds']
+        youtube_results = ytmusic.search(query, filter='songs', limit=1)
+        id = youtube_results[0]['videoId']
+        youtube_url = f'https://www.youtube.com/watch?v={id}'
+        duration = youtube_results[0]['duration_seconds']
 
-    return query, id, duration, cover, genre, release_date, album_name, start_year, end_year, title, artist, popularity
+        try:
+            deezer_results = search_deezer_track(query)
+            if deezer_results:
+                id = deezer_results['id']
+                deezer_url = deezer_results['url']
+                preview = deezer_results['preview']
+                song_found = True
+        except:
+            pass
 
-def download_song(id, start):
+    return query, id, deezer_url, youtube_url, spotify_url, duration, cover, preview, genre, release_date, album_name, start_year, end_year, title, artist, popularity
+
+
+def download_yt(id, query, start):
     output_dir = 'static/clips'
     ydl_opts = {
-        'cookiefile': 'cookies.txt',
         'format': 'bestaudio/best',
         'outtmpl': os.path.join(output_dir, '%(title)s.%(ext)s'),
         'external_downloader': 'ffmpeg',
@@ -67,10 +122,7 @@ def download_song(id, start):
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3',
             'preferredquality': '192',
-        }],
-        'http_headers': {
-            'User-Agent': "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36"
-        }
+        }]
     }
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -80,10 +132,11 @@ def download_song(id, start):
     return filename.replace('.webm','.mp3')
 
 
+
 ## Flask App
 
-download_progress = {}
-
+download_cache = {}
+download_paths = {}
 app = Flask(__name__)
 app.secret_key = 'blue-swan'
 
@@ -97,10 +150,13 @@ def dig():
     genre = params.get('genre')
     start_year = params.get('startYear')
     end_year = params.get('endYear')
+    artist = params.get('artist')
+    album = params.get('album')
+    track = params.get('track')
     is_test = params.get('isTest')
 
     if is_test:
-        url = 'https://www.youtube.com/watch?v=RLBgQrvAp6Q'
+        youtube_url = 'https://www.youtube.com/watch?v=RLBgQrvAp6Q'
         query = 'Only One (feat. DJ Spinn & Taso) by DJ Rashad'
         id = 'RLBgQrvAp6Q'
         duration = 225 
@@ -115,21 +171,23 @@ def dig():
         popularity = 18
     else:
         try:
-            query, id, duration, cover, genre, release_date, album_name, start_year, end_year, title, artist, popularity = get_random_song(genre, start_year, end_year)
-            url = f'https://www.youtube.com/watch?v={id}'
+            query, id, deezer_url, youtube_url, spotify_url, duration, cover, preview, genre, release_date, album_name, start_year, end_year, title, artist, popularity = get_random_song(genre, start_year, end_year, artist, album, track)
         except ValueError:
             return jsonify({'status': 'error', 'message': 'NO TRACKS FOUND'})
         except:
             return jsonify({'status': 'error', 'message': 'TRY AGAIN'})
 
     return jsonify({'status': 'success',
-                    'id': id, 
-                    'url': url,
+                    
+                    'deezer_url': deezer_url,
+                    'youtube_url': youtube_url,
+                    'spotify_url': spotify_url,
+                    'duration': duration,
                     'query': query, 
                     'title': title,
                     'artist': artist,
                     'cover': cover, 
-                    'duration': duration, 
+                    'preview': preview, 
                     'genre': genre,
                     'release_date': release_date,
                     'album_name': album_name,
@@ -140,18 +198,67 @@ def dig():
 @app.route('/drop', methods=['POST'])
 def drop():
     params = request.get_json()
-    id = params.get('id')
-    duration = params.get('duration')
+    url = params.get('url')
+    duration = int(params.get('duration'))
     start_time = random.randint(0,duration-5)
     is_test = params.get('isTest')
 
     if is_test:
         path = 'static/clips/Only One (feat. DJ Spinn & Taso).mp3'
-    else:
-        path = download_song(id, start_time)
         
     return jsonify({'path':path,'start_time':start_time})
 
+@app.route('/pocket', methods=['POST'])
+def pocket():
+    params = request.get_json()
+    url = params.get('url')
+
+    tmpdir = tempfile.mkdtemp()
+    run(['./dmix', url, '--path', tmpdir], check=True)
+
+    files = os.listdir(tmpdir)
+    if not files:
+        return {'error': 'No file downloaded'}, 500
+
+    filepath = os.path.join(tmpdir, files[0])
+    file_id = str(uuid.uuid4())
+    download_cache[file_id] = filepath
+    return jsonify({"file_id": file_id, "filename": files[0]})
+
+'''   
+@app.route('/pocket')
+def pocket():
+    url = request.args.get('url')
+    if not url:
+        return "Missing URL", 400
+
+    def generate():
+        file_id = str(uuid.uuid4())
+        tmpdir = tempfile.mkdtemp()
+        cmd = f'deemix "{url}" --path {tmpdir}'
+        proc = Popen(shlex.split(cmd), stdout=PIPE, stderr=PIPE, text=True)
+
+        for line in proc.stdout:
+            yield f"data: {line.strip()}\n\n"
+            if "Download at 100%" in line:
+                files = os.listdir(tmpdir)
+                if files:
+                    path = os.path.join(tmpdir, files[0])
+                    download_paths[file_id] = path
+                    yield f"event: done\ndata: {file_id}\n\n"
+
+    return Response(stream_with_context(generate()), mimetype='text/event-stream')
+'''
+       
+@app.route('/download')
+def download():
+    file_id = request.args.get('id')
+    path = download_cache.get(file_id)
+    if not path:
+        return "Invalid or expired download", 404
+    return send_file(path, as_attachment=True, download_name=os.path.basename(path), mimetype="audio/mpeg")
+
+    
 @app.route('/cleanup', methods=['POST'])
 def cleanup():
     params = request.get_json()
