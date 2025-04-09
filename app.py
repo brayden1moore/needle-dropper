@@ -216,7 +216,7 @@ def pocket():
 
     tmpdir = tempfile.mkdtemp()
     if platform.system() == "Linux":
-        run(['source','/root/needle-dropper/venv/bin/activate','python','dmix', url, '--path', tmpdir], check=True)
+        run(['/root/needle-dropper/venv/bin/python', 'dmix', url, '--path', tmpdir], check=True)
     else:
         run(['./dmix', url, '--path', tmpdir], check=True)
 
