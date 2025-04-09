@@ -8,6 +8,7 @@ import ffmpeg
 import random
 import spotipy
 import requests
+import platform
 import tempfile
 from io import BytesIO
 from datetime import datetime
@@ -214,7 +215,10 @@ def pocket():
     url = params.get('url')
 
     tmpdir = tempfile.mkdtemp()
-    run(['./dmix', url, '--path', tmpdir], check=True)
+    if platform.system() == "Linux":
+        run(['/root/needle-dropper/venv/bin/python','/root/needle-dropper/dmix', url, '--path', tmpdir], check=True)
+    else:
+        run(['/.dmix', url, '--path', tmpdir], check=True)
 
     files = os.listdir(tmpdir)
     if not files:
