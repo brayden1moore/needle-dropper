@@ -15,7 +15,7 @@ from datetime import datetime
 from ytmusicapi import YTMusic
 from spotipy.oauth2 import SpotifyClientCredentials
 from flask import jsonify, Flask, abort, Response, render_template, send_file, stream_with_context, request, session, redirect, url_for, stream_with_context
-from subprocess import Popen, PIPE, run
+from subprocess import Popen, PIPE, run, CalledProcessError
 
 with open('spotify.json','r') as f:
     spotify_credentials = json.load(f)
@@ -216,7 +216,17 @@ def pocket():
 
     tmpdir = tempfile.mkdtemp()
     if platform.system() == "Linux":
-        run(['/root/needle-dropper/venv/bin/python', 'dmix', url, '--path', tmpdir], check=True)
+        try:
+            run(['/root/needle-dropper/venv/bin/python', '/root/needle-dropper/dmix', url, '--path', tmpdir],
+            check=True,
+            stdout=PIPE,
+            stderr=PIPE,
+            text=True
+        )
+        except CalledProcessError as e:
+            print("stdout:", e.stdout)
+            print("stderr:", e.stderr)
+            raise
     else:
         run(['./dmix', url, '--path', tmpdir], check=True)
 
